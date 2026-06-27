@@ -24,6 +24,10 @@ export interface VisibleSelection {
   rect: DOMRect;
   context: string;
   sourceElement?: HTMLInputElement | HTMLTextAreaElement;
+  sourceRange?: {
+    start: number;
+    end: number;
+  };
 }
 
 export interface PopupPosition {

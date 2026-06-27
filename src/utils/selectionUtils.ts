@@ -64,8 +64,13 @@ export async function copyText(text: string): Promise<void> {
 export function replaceSelectedText(selection: VisibleSelection, value: string): boolean {
   if (selection.sourceElement) {
     const element = selection.sourceElement;
-    const start = element.selectionStart ?? 0;
-    const end = element.selectionEnd ?? start;
+    const start = selection.sourceRange?.start ?? element.selectionStart ?? 0;
+    const end = selection.sourceRange?.end ?? element.selectionEnd ?? start;
+
+    if (!isSameSelectionText(element.value.slice(start, end), selection.text)) {
+      return false;
+    }
+
     element.setRangeText(value, start, end, 'end');
     element.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertReplacementText', data: value }));
     return true;
@@ -73,6 +78,7 @@ export function replaceSelectedText(selection: VisibleSelection, value: string):
 
   const activeSelection = window.getSelection();
   if (!activeSelection || activeSelection.rangeCount === 0) return false;
+  if (!isSameSelectionText(activeSelection.toString(), selection.text)) return false;
 
   const range = activeSelection.getRangeAt(0);
   range.deleteContents();
@@ -104,6 +110,7 @@ function getInputSelection(): VisibleSelection | null {
     rect,
     context: active.value.slice(contextStart, contextEnd),
     sourceElement: active,
+    sourceRange: { start, end },
   };
 }
 
@@ -134,4 +141,8 @@ function hasArea(rect: DOMRect): boolean {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
+}
+
+function isSameSelectionText(currentText: string, originalText: string): boolean {
+  return currentText.trim() === originalText.trim();
 }

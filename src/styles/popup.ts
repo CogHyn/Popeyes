@@ -8,6 +8,8 @@ export const popupStyles = `
     max-height: 320px;
     color-scheme: light;
     font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    -webkit-user-select: none;
+    user-select: none;
   }
 
   * {
@@ -32,6 +34,8 @@ export const popupStyles = `
     color: #111827;
     display: flex;
     flex-direction: column;
+    -webkit-user-select: none;
+    user-select: none;
   }
 
   .assist-header {
@@ -201,6 +205,8 @@ export const popupStyles = `
     color: #0f172a;
     padding: 9px 10px;
     font-size: 13px;
+    -webkit-user-select: text;
+    user-select: text;
   }
 
   .query-input::placeholder {

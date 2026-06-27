@@ -17,6 +17,7 @@ export default defineContentScript({
 
     style.textContent = popupStyles;
     host.style.display = 'none';
+    host.addEventListener('keydown', handlePopupSelectAllShortcut, true);
     shadow.append(style, mount);
     document.documentElement.append(host);
 
@@ -114,6 +115,13 @@ export default defineContentScript({
         return;
       }
 
+      if (isSelectAllShortcut(event)) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        return;
+      }
+
       event.stopPropagation();
       if (event.type !== 'keydown') {
         event.preventDefault();
@@ -130,6 +138,14 @@ export default defineContentScript({
       closePopup();
     }
 
+    function handlePopupSelectAllShortcut(event: KeyboardEvent) {
+      if (!app || !isSelectAllShortcut(event) || isPopupTextInputEvent(event)) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+    }
+
     function isPopupTextInputEvent(event: KeyboardEvent): boolean {
       return event.composedPath().some((target) => {
         return target instanceof HTMLInputElement && target.classList.contains('query-input');
@@ -138,6 +154,10 @@ export default defineContentScript({
 
     function isPopupInputFocused(): boolean {
       return shadow.activeElement instanceof HTMLInputElement && shadow.activeElement.classList.contains('query-input');
+    }
+
+    function isSelectAllShortcut(event: KeyboardEvent): boolean {
+      return event.key.toLowerCase() === 'a' && (event.ctrlKey || event.metaKey) && !event.altKey;
     }
 
     browser.runtime.onMessage.addListener((message) => {
