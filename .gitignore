@@ -92,3 +92,7 @@ package-lock.json
 *v8.log
 /lib/
 .env
+
+# Backend
+backend/dist/
+!backend/package-lock.json
