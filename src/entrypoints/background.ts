@@ -1,14 +1,10 @@
-import { MockSearchEngine } from '@/ai_engine/search/search.mock';
-import { MockSummaryEngine } from '@/ai_engine/summary/summary.mock';
-import { MockTranslateEngine } from '@/ai_engine/translate/translate.mock';
+import { BackendAiEngine, BackendApiError } from '@/ai_engine/backend/backend.client';
 import type { ActionId, StreamMessage, StreamRequest } from '@/types';
 
 const VIETNAMESE_RE = /[ăâđêôơưáàảãạấầẩẫậắằẳẵặéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵ]/i;
 const SUMMARY_LENGTH_THRESHOLD = 1000;
 const CONTEXT_MENU_ID = 'selection-assist-open';
-const translateEngine = new MockTranslateEngine();
-const summaryEngine = new MockSummaryEngine();
-const searchEngine = new MockSearchEngine();
+const backendEngine = new BackendAiEngine();
 
 export default defineBackground(() => {
   void ensureContextMenu();
@@ -73,7 +69,7 @@ async function streamDraftResponse(
   isCancelled: () => boolean,
 ): Promise<void> {
   try {
-    const response = await buildMockResponse(request);
+    const response = await buildBackendResponse(request);
 
     if (response.replacementText) {
       postStreamMessage(port, { type: 'replacement', text: response.replacementText });
@@ -88,21 +84,21 @@ async function streamDraftResponse(
     if (!isCancelled()) {
       postStreamMessage(port, { type: 'done' });
     }
-  } catch {
+  } catch (error) {
     if (!isCancelled()) {
       postStreamMessage(port, {
         type: 'error',
-        message: 'Không thể tạo phản hồi lúc này. Thử lại sau nhé.',
+        message: getStreamErrorMessage(error),
       });
     }
   }
 }
 
-async function buildMockResponse(request: StreamRequest): Promise<{ displayText: string; replacementText?: string }> {
+async function buildBackendResponse(request: StreamRequest): Promise<{ displayText: string; replacementText?: string }> {
   const selectedText = request.selectedText.trim();
 
   if (request.mode === 'translate') {
-    const response = await translateEngine.translate({
+    const response = await backendEngine.translate({
       text: selectedText,
       targetLanguage: 'vi',
     });
@@ -114,7 +110,7 @@ async function buildMockResponse(request: StreamRequest): Promise<{ displayText:
   }
 
   if (request.mode === 'summary') {
-    const response = await summaryEngine.summarize({
+    const response = await backendEngine.summarize({
       content: selectedText,
     });
 
@@ -124,7 +120,7 @@ async function buildMockResponse(request: StreamRequest): Promise<{ displayText:
   }
 
   const query = request.query?.trim() || selectedText;
-  const response = await searchEngine.search({
+  const response = await backendEngine.search({
     query,
   });
   const resultLines = response.results.map((result, index) => {
@@ -133,15 +129,21 @@ async function buildMockResponse(request: StreamRequest): Promise<{ displayText:
 
   return {
     displayText: [
-      `[Mock Search]`,
       `Câu hỏi: ${query}`,
       '',
-      'Câu trả lời nháp: dựa trên đoạn đã chọn và kết quả mock, đây là phản hồi dùng để test UI streaming/search mode trước khi nối Tavily thật.',
+      'Kết quả tìm kiếm:',
       '',
-      'Nguồn mock:',
       ...resultLines,
     ].join('\n'),
   };
+}
+
+function getStreamErrorMessage(error: unknown): string {
+  if (error instanceof BackendApiError) {
+    return error.message;
+  }
+
+  return 'Không thể tạo phản hồi lúc này. Thử lại sau nhé.';
 }
 
 function chunkText(text: string, size: number): string[] {

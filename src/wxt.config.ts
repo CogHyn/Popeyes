@@ -4,5 +4,6 @@ import { defineConfig } from 'wxt';
 export default defineConfig({
   manifest: {
     permissions: ['contextMenus'],
+    host_permissions: ['http://localhost:3001/*'],
   },
 });
