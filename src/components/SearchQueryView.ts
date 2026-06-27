@@ -12,13 +12,13 @@ export function SearchQueryView({ query, onQueryChange, onSubmit }: SearchQueryV
     className: 'query-input',
     attributes: {
       type: 'text',
-      placeholder: 'Hỏi AI về đoạn đã chọn...',
-      value: query,
+      placeholder: 'Hỏi AI...',
       autocomplete: 'off',
       spellcheck: 'false',
       'aria-label': 'Search question',
     },
   });
+  input.value = query;
 
   input.addEventListener('input', () => onQueryChange(input.value));
   input.addEventListener('keydown', (event) => {
@@ -44,6 +44,9 @@ export function SearchQueryView({ query, onQueryChange, onSubmit }: SearchQueryV
     }),
   );
 
-  window.setTimeout(() => input.focus({ preventScroll: true }), 0);
+  window.setTimeout(() => {
+    input.focus({ preventScroll: true });
+    input.setSelectionRange(input.value.length, input.value.length);
+  }, 0);
   return shell;
 }

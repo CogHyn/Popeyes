@@ -314,6 +314,13 @@ class DashboardApp {
         },
       }),
       createToggleField({
+        label: 'Enable type-to-search',
+        checked: settings.behavior.enableTypeToSearch,
+        onChange: (checked) => {
+          settings.behavior.enableTypeToSearch = checked;
+        },
+      }),
+      createToggleField({
         label: 'Enable quick search shortcut',
         checked: settings.shortcuts.enableQuickSearchShortcut,
         onChange: (checked) => {

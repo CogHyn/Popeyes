@@ -25,6 +25,7 @@ export interface BehaviorSettings {
   answerStyle: AnswerStyle;
   includeSelectionContext: boolean;
   enableWebSearch: boolean;
+  enableTypeToSearch: boolean;
 }
 
 export interface ShortcutSettings {
@@ -80,6 +81,7 @@ export function getDefaultDashboardSettings(): DashboardSettings {
       answerStyle: 'concise',
       includeSelectionContext: true,
       enableWebSearch: true,
+      enableTypeToSearch: true,
     },
     shortcuts: {
       enableQuickSearchShortcut: true,
@@ -137,6 +139,7 @@ export function normalizeDashboardSettings(value: unknown): DashboardSettings {
       answerStyle: asEnum(behavior.answerStyle, ['concise', 'detailed', 'bullet_points'], defaults.behavior.answerStyle),
       includeSelectionContext: asBoolean(behavior.includeSelectionContext, defaults.behavior.includeSelectionContext),
       enableWebSearch: asBoolean(behavior.enableWebSearch, defaults.behavior.enableWebSearch),
+      enableTypeToSearch: asBoolean(behavior.enableTypeToSearch, defaults.behavior.enableTypeToSearch),
     },
     shortcuts: {
       enableQuickSearchShortcut: asBoolean(

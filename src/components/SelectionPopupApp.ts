@@ -14,6 +14,7 @@ interface SelectionPopupAppOptions {
   selection: VisibleSelection;
   onClose: () => void;
   initialMode?: 'actions' | 'search';
+  initialQuery?: string;
 }
 
 export class SelectionPopupApp {
@@ -35,10 +36,11 @@ export class SelectionPopupApp {
   private chatMessages: ChatMessage[] = [];
   private port?: Browser.runtime.Port;
 
-  constructor({ selection, onClose, initialMode = 'actions' }: SelectionPopupAppOptions) {
+  constructor({ selection, onClose, initialMode = 'actions', initialQuery = '' }: SelectionPopupAppOptions) {
     this.selection = selection;
     this.onClose = onClose;
     this.isQueryOpen = initialMode === 'search';
+    this.query = initialQuery;
     this.classifyIntent();
     this.render();
   }

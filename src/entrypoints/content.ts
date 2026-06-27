@@ -36,6 +36,8 @@ export default defineContentScript({
     let selectionTimer: number | undefined;
     let pointerStartedInsidePopup = false;
     let shortcutSettings: ShortcutSettings = getDefaultDashboardSettings().shortcuts;
+    let enableTypeToSearch = getDefaultDashboardSettings().behavior.enableTypeToSearch;
+    let lastMousePosition: { left: number; top: number } | undefined;
 
     void refreshShortcutSettings();
 
@@ -47,13 +49,17 @@ export default defineContentScript({
       host.style.display = 'none';
     };
 
-    const openPopup = (selection: VisibleSelection, options: { initialMode?: 'actions' | 'search' } = {}) => {
+    const openPopup = (
+      selection: VisibleSelection,
+      options: { initialMode?: 'actions' | 'search'; initialQuery?: string } = {},
+    ) => {
       activeSelection = selection;
       app?.dispose();
       app = new SelectionPopupApp({
         selection,
         onClose: closePopup,
         initialMode: options.initialMode,
+        initialQuery: options.initialQuery,
       });
 
       mount.replaceChildren(app.element);
@@ -83,6 +89,14 @@ export default defineContentScript({
     const openQuickSearchPopup = () => {
       window.clearTimeout(selectionTimer);
       openPopup(getQuickSearchSelection(), { initialMode: 'search' });
+    };
+
+    const openTypeToSearchPopup = (initialQuery: string) => {
+      window.clearTimeout(selectionTimer);
+      openPopup(getQuickSearchSelection(lastMousePosition), {
+        initialMode: 'search',
+        initialQuery,
+      });
     };
 
     const openFromContextMenu = () => {
@@ -132,6 +146,14 @@ export default defineContentScript({
         return;
       }
 
+      if (event.type === 'keydown' && isTypeToSearchTrigger(event)) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        openTypeToSearchPopup(event.key);
+        return;
+      }
+
       if (!app) return;
 
       if (isPopupInputEvent) {
@@ -167,6 +189,13 @@ export default defineContentScript({
       closePopup();
     }
 
+    function updateLastMousePosition(event: MouseEvent) {
+      lastMousePosition = {
+        left: event.clientX,
+        top: event.clientY,
+      };
+    }
+
     function handlePopupSelectAllShortcut(event: KeyboardEvent) {
       if (!app || !isSelectAllShortcut(event) || isPopupTextInputEvent(event)) return;
 
@@ -191,9 +220,13 @@ export default defineContentScript({
 
     async function refreshShortcutSettings(): Promise<void> {
       try {
-        shortcutSettings = (await getDashboardSettings()).shortcuts;
+        const settings = await getDashboardSettings();
+        shortcutSettings = settings.shortcuts;
+        enableTypeToSearch = settings.behavior.enableTypeToSearch;
       } catch {
-        shortcutSettings = getDefaultDashboardSettings().shortcuts;
+        const defaults = getDefaultDashboardSettings();
+        shortcutSettings = defaults.shortcuts;
+        enableTypeToSearch = defaults.behavior.enableTypeToSearch;
       }
     }
 
@@ -209,6 +242,27 @@ export default defineContentScript({
       return createShortcutStringFromKeyboardEvent(event) === normalizedShortcut;
     }
 
+    function isTypeToSearchTrigger(event: KeyboardEvent): boolean {
+      if (!enableTypeToSearch || app || event.repeat || event.isComposing) return false;
+      if (event.ctrlKey || event.metaKey || event.altKey) return false;
+      if (!isPrintableNonSpaceKey(event.key)) return false;
+      if (isEditablePageEvent(event)) return false;
+      return !getVisibleSelection();
+    }
+
+    function isPrintableNonSpaceKey(key: string): boolean {
+      return key.length === 1 && key.trim().length > 0;
+    }
+
+    function isEditablePageEvent(event: KeyboardEvent): boolean {
+      return event.composedPath().some((target) => {
+        if (target instanceof HTMLInputElement) return true;
+        if (target instanceof HTMLTextAreaElement) return true;
+        if (target instanceof HTMLSelectElement) return true;
+        return target instanceof HTMLElement && target.isContentEditable;
+      });
+    }
+
     browser.runtime.onMessage.addListener((message) => {
       if (message?.type !== 'OPEN_SELECTION_ASSIST') return;
 
@@ -221,11 +275,15 @@ export default defineContentScript({
       const settingsChange = changes[DASHBOARD_SETTINGS_KEY];
       if (!settingsChange) return;
 
-      shortcutSettings = normalizeDashboardSettings(settingsChange.newValue).shortcuts;
+      const settings = normalizeDashboardSettings(settingsChange.newValue);
+      shortcutSettings = settings.shortcuts;
+      enableTypeToSearch = settings.behavior.enableTypeToSearch;
     });
 
     document.addEventListener('selectionchange', scheduleSelectionCheck);
+    window.addEventListener('mousedown', updateLastMousePosition, true);
     window.addEventListener('mousedown', handleOutsidePointer, true);
+    window.addEventListener('mousemove', updateLastMousePosition, true);
     window.addEventListener('mouseup', scheduleSelectionCheck, true);
     window.addEventListener('resize', updatePopupPosition);
     window.addEventListener('scroll', updatePopupPosition, true);

@@ -33,16 +33,16 @@ export function getVisibleSelection(): VisibleSelection | null {
   };
 }
 
-export function getQuickSearchSelection(): VisibleSelection {
+export function getQuickSearchSelection(position?: PopupPosition): VisibleSelection {
   const visibleSelection = getVisibleSelection();
   if (visibleSelection) return visibleSelection;
 
   const activeInputContext = getActiveInputContext();
-  if (activeInputContext) return activeInputContext;
+  if (activeInputContext && !position) return activeInputContext;
 
   return {
     text: '',
-    rect: getFallbackPopupRect(),
+    rect: position ? getPointPopupRect(position) : getFallbackPopupRect(),
     context: getPageContext(),
   };
 }
@@ -83,6 +83,10 @@ function getFallbackPopupRect(): DOMRect {
   const top = Math.max(VIEWPORT_MARGIN, window.innerHeight * 0.22);
 
   return new DOMRect(left, top, 0, 0);
+}
+
+function getPointPopupRect(position: PopupPosition): DOMRect {
+  return new DOMRect(position.left, position.top, 0, 0);
 }
 
 function getPageContext(): string {
