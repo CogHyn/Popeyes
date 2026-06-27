@@ -16,12 +16,19 @@ interface GroqCompletionResponse {
   choices?: GroqChoice[];
 }
 
+export interface GroqCompletionOptions {
+  apiKey?: string;
+  model?: string;
+}
+
 export async function completeWithGroq(
   systemPrompt: string,
   userPrompt: string,
   maxCompletionTokens: number,
+  options: GroqCompletionOptions = {},
 ): Promise<string> {
-  const apiKey = requireConfigValue(config.groqApiKey, 'VITE_GROQ_API_KEY');
+  const apiKey = requireConfigValue(options.apiKey || config.groqApiKey, 'VITE_GROQ_API_KEY');
+  const model = options.model?.trim() || config.groqModel;
   const messages: GroqMessage[] = [
     { role: 'system', content: systemPrompt },
     { role: 'user', content: userPrompt },
@@ -35,7 +42,7 @@ export async function completeWithGroq(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: config.groqModel,
+        model,
         temperature: 0.2,
         reasoning_effort: 'none',
         max_completion_tokens: maxCompletionTokens,

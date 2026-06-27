@@ -1,10 +1,13 @@
-import { completeWithGroq } from '@/ai_engine/shared/groq';
+import { completeWithGroq, type GroqCompletionOptions } from '@/ai_engine/shared/groq';
 import type { SearchQuery } from './search.interface';
 
 const MAX_PLANNED_QUERY_LENGTH = 380;
 const PLANNER_CONTEXT_LIMIT = 1800;
 
-export async function planSearchQueryWithGroq(query: SearchQuery): Promise<string> {
+export async function planSearchQueryWithGroq(
+  query: SearchQuery,
+  options: GroqCompletionOptions = {},
+): Promise<string> {
   const fallbackQuery = buildFallbackSearchQuery(query);
 
   try {
@@ -18,6 +21,7 @@ export async function planSearchQueryWithGroq(query: SearchQuery): Promise<strin
       ].join(' '),
       buildPlannerPrompt(query),
       100,
+      options,
     );
 
     return sanitizeSearchQuery(plannedQuery) || fallbackQuery;

@@ -14,9 +14,15 @@ interface TavilyResponse {
 
 const MAX_TAVILY_QUERY_LENGTH = 400;
 
+interface TavilySearchEngineOptions {
+  apiKey?: string;
+}
+
 export class TavilySearchEngine implements ISearchEngine {
+  constructor(private readonly options: TavilySearchEngineOptions = {}) {}
+
   async search(query: SearchQuery): Promise<SearchResponse> {
-    const apiKey = requireConfigValue(config.tavilyApiKey, 'VITE_TAVILY_API_KEY');
+    const apiKey = requireConfigValue(this.options.apiKey || config.tavilyApiKey, 'VITE_TAVILY_API_KEY');
     const retrievalQuery = truncateForSearch(query.query);
 
     try {

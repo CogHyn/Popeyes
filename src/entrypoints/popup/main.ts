@@ -1,24 +1,50 @@
+import { createElement } from '@/components/dom';
+import { getDashboardSettings } from '@/dashboard/settings';
 import './style.css';
-import typescriptLogo from '@/assets/typescript.svg';
-import wxtLogo from '/wxt.svg';
-import { setupCounter } from '@/components/counter';
 
-document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
-  <div>
-    <a href="https://wxt.dev" target="_blank">
-      <img src="${wxtLogo}" class="logo" alt="WXT logo" />
-    </a>
-    <a href="https://www.typescriptlang.org/" target="_blank">
-      <img src="${typescriptLogo}" class="logo vanilla" alt="TypeScript logo" />
-    </a>
-    <h1>WXT + TypeScript</h1>
-    <div class="card">
-      <button id="counter" type="button"></button>
-    </div>
-    <p class="read-the-docs">
-      Click on the WXT and TypeScript logos to learn more
-    </p>
-  </div>
-`;
+const app = document.querySelector<HTMLDivElement>('#app');
 
-setupCounter(document.querySelector<HTMLButtonElement>('#counter')!);
+if (app) {
+  void renderPopup(app);
+}
+
+async function renderPopup(root: HTMLElement): Promise<void> {
+  try {
+    const settings = await getDashboardSettings();
+    const openButton = createElement('button', {
+      className: 'popup-primary',
+      text: 'Open dashboard',
+      attributes: { type: 'button' },
+    });
+    openButton.addEventListener('click', () => {
+      void browser.runtime.openOptionsPage();
+      window.close();
+    });
+
+    root.replaceChildren(
+      createElement('section', { className: 'popup-shell' }, [
+        createElement('h1', { className: 'popup-title', text: 'AI Assistant' }),
+        createElement('div', { className: 'popup-status-list' }, [
+          createStatusRow('LLM', settings.provider.llmProvider === 'groq' ? settings.provider.groqModel : 'Mock'),
+          createStatusRow('Search', settings.provider.searchProvider),
+          createStatusRow('Web search', settings.behavior.enableWebSearch ? 'Enabled' : 'Disabled'),
+        ]),
+        openButton,
+      ]),
+    );
+  } catch {
+    root.replaceChildren(
+      createElement('section', { className: 'popup-shell' }, [
+        createElement('h1', { className: 'popup-title', text: 'AI Assistant' }),
+        createElement('p', { className: 'popup-error', text: 'Could not load settings.' }),
+      ]),
+    );
+  }
+}
+
+function createStatusRow(label: string, value: string): HTMLElement {
+  return createElement('div', { className: 'popup-status-row' }, [
+    createElement('span', { className: 'popup-status-label', text: label }),
+    createElement('span', { className: 'popup-status-value', text: value }),
+  ]);
+}

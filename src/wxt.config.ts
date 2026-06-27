@@ -6,7 +6,7 @@ export default defineConfig({
     envDir: '..',
   }),
   manifest: {
-    permissions: ['contextMenus'],
+    permissions: ['contextMenus', 'storage'],
     host_permissions: ['https://api.groq.com/*', 'https://api.tavily.com/*'],
   },
 });
