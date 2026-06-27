@@ -4,6 +4,9 @@ import { defineConfig } from 'wxt';
 export default defineConfig({
   manifest: {
     permissions: ['contextMenus'],
-    host_permissions: ['http://localhost:3001/*'],
+    host_permissions: [
+      'https://api.groq.com/*',
+      'https://api.tavily.com/*',
+    ],
   },
 });

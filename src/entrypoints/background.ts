@@ -1,10 +1,10 @@
-import { BackendAiEngine, BackendApiError } from '@/ai_engine/backend/backend.client';
+import { ProviderAiEngine, ProviderApiError } from '@/ai_engine/provider/provider.client';
 import type { ActionId, StreamMessage, StreamRequest } from '@/types';
 
 const VIETNAMESE_RE = /[ăâđêôơưáàảãạấầẩẫậắằẳẵặéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵ]/i;
 const SUMMARY_LENGTH_THRESHOLD = 1000;
 const CONTEXT_MENU_ID = 'selection-assist-open';
-const backendEngine = new BackendAiEngine();
+const providerEngine = new ProviderAiEngine();
 
 export default defineBackground(() => {
   void ensureContextMenu();
@@ -98,7 +98,7 @@ async function buildBackendResponse(request: StreamRequest): Promise<{ displayTe
   const selectedText = request.selectedText.trim();
 
   if (request.mode === 'translate') {
-    const response = await backendEngine.translate({
+    const response = await providerEngine.translate({
       text: selectedText,
       targetLanguage: 'vi',
     });
@@ -110,7 +110,7 @@ async function buildBackendResponse(request: StreamRequest): Promise<{ displayTe
   }
 
   if (request.mode === 'summary') {
-    const response = await backendEngine.summarize({
+    const response = await providerEngine.summarize({
       content: selectedText,
     });
 
@@ -120,7 +120,7 @@ async function buildBackendResponse(request: StreamRequest): Promise<{ displayTe
   }
 
   const query = request.query?.trim() || selectedText;
-  const response = await backendEngine.search({
+  const response = await providerEngine.search({
     query,
   });
   const resultLines = response.results.map((result, index) => {
@@ -139,7 +139,7 @@ async function buildBackendResponse(request: StreamRequest): Promise<{ displayTe
 }
 
 function getStreamErrorMessage(error: unknown): string {
-  if (error instanceof BackendApiError) {
+  if (error instanceof ProviderApiError) {
     return error.message;
   }
 
