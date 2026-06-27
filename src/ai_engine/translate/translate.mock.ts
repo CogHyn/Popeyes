@@ -2,19 +2,20 @@ import type { ITranslateEngine, TranslateQuery, TranslateResponse } from './tran
 
 export class MockTranslateEngine implements ITranslateEngine {
   async translate(query: TranslateQuery): Promise<TranslateResponse> {
-    const sourceLanguage = query.sourceLanguage ?? 'auto';
-    const targetLanguage = query.targetLanguage || 'vi';
     const normalizedText = normalizeText(query.text);
 
     return {
-      translatedText: [
-        `[Mock Translate: ${sourceLanguage} -> ${targetLanguage}]`,
-        `Bản dịch tiếng Việt nháp: ${normalizedText}`,
-      ].join('\n'),
+      translatedText: createCustomerReadyMockTranslation(normalizedText),
     };
   }
 }
 
 function normalizeText(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
+}
+
+function createCustomerReadyMockTranslation(text: string): string {
+  if (!text) return '';
+
+  return text;
 }

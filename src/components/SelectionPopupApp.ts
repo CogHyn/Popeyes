@@ -27,6 +27,7 @@ export class SelectionPopupApp {
   private query = '';
   private state: PopupState = 'list';
   private output = '';
+  private replacementText = '';
   private errorMessage = '';
   private port?: Browser.runtime.Port;
 
@@ -70,10 +71,10 @@ export class SelectionPopupApp {
       return;
     }
 
-    if ((event.key === '1' || event.key === '2') && !this.query) {
+    if (/^[1-9]$/.test(event.key) && !this.query) {
       event.preventDefault();
       const action = this.actions[Number(event.key) - 1];
-      if (action) this.execute(action.id);
+      if (action) this.selectAction(action.id);
       return;
     }
 
@@ -127,7 +128,8 @@ export class SelectionPopupApp {
         onBack: () => this.resetToList(),
         onCopy: () => void copyText(this.output),
         onInsert: () => {
-          if (this.output) replaceSelectedText(this.selection, this.output);
+          const textToInsert = this.replacementText || this.output;
+          if (textToInsert) replaceSelectedText(this.selection, textToInsert);
         },
         onStop: () => this.stopStream(),
       });
@@ -147,13 +149,14 @@ export class SelectionPopupApp {
     return ActionList({
       actions: this.actions,
       activeActionId: this.activeActionId,
-      onSelect: (actionId) => this.execute(actionId),
+      onSelect: (actionId) => this.selectAction(actionId),
     });
   }
 
   private execute(mode: StreamRequest['mode']): void {
     this.disconnectPort();
     this.output = '';
+    this.replacementText = '';
     this.errorMessage = '';
     this.state = 'streaming';
     this.render();
@@ -173,6 +176,11 @@ export class SelectionPopupApp {
         if (message.type === 'chunk') {
           this.output += message.chunk;
           this.render();
+          return;
+        }
+
+        if (message.type === 'replacement') {
+          this.replacementText = message.text;
           return;
         }
 
@@ -210,10 +218,16 @@ export class SelectionPopupApp {
     this.render();
   }
 
+  private selectAction(actionId: ActionId): void {
+    this.activeActionId = actionId;
+    this.render();
+  }
+
   private resetToList(): void {
     this.disconnectPort();
     this.query = '';
     this.output = '';
+    this.replacementText = '';
     this.errorMessage = '';
     this.state = 'list';
     this.render();

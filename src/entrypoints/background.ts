@@ -75,7 +75,11 @@ async function streamDraftResponse(
   try {
     const response = await buildMockResponse(request);
 
-    for (const chunk of chunkText(response, 18)) {
+    if (response.replacementText) {
+      postStreamMessage(port, { type: 'replacement', text: response.replacementText });
+    }
+
+    for (const chunk of chunkText(response.displayText, 18)) {
       if (isCancelled()) return;
       postStreamMessage(port, { type: 'chunk', chunk });
       await delay(28);
@@ -94,7 +98,7 @@ async function streamDraftResponse(
   }
 }
 
-async function buildMockResponse(request: StreamRequest): Promise<string> {
+async function buildMockResponse(request: StreamRequest): Promise<{ displayText: string; replacementText?: string }> {
   const selectedText = request.selectedText.trim();
 
   if (request.mode === 'translate') {
@@ -103,7 +107,10 @@ async function buildMockResponse(request: StreamRequest): Promise<string> {
       targetLanguage: 'vi',
     });
 
-    return response.translatedText;
+    return {
+      displayText: response.translatedText,
+      replacementText: response.translatedText,
+    };
   }
 
   if (request.mode === 'summary') {
@@ -111,7 +118,9 @@ async function buildMockResponse(request: StreamRequest): Promise<string> {
       content: selectedText,
     });
 
-    return response.summaryText;
+    return {
+      displayText: response.summaryText,
+    };
   }
 
   const query = request.query?.trim() || selectedText;
@@ -122,15 +131,17 @@ async function buildMockResponse(request: StreamRequest): Promise<string> {
     return `${index + 1}. ${result.title}\n   ${result.link}`;
   });
 
-  return [
-    `[Mock Search]`,
-    `Câu hỏi: ${query}`,
-    '',
-    'Câu trả lời nháp: dựa trên đoạn đã chọn và kết quả mock, đây là phản hồi dùng để test UI streaming/search mode trước khi nối Tavily thật.',
-    '',
-    'Nguồn mock:',
-    ...resultLines,
-  ].join('\n');
+  return {
+    displayText: [
+      `[Mock Search]`,
+      `Câu hỏi: ${query}`,
+      '',
+      'Câu trả lời nháp: dựa trên đoạn đã chọn và kết quả mock, đây là phản hồi dùng để test UI streaming/search mode trước khi nối Tavily thật.',
+      '',
+      'Nguồn mock:',
+      ...resultLines,
+    ].join('\n'),
+  };
 }
 
 function chunkText(text: string, size: number): string[] {

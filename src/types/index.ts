@@ -31,6 +31,7 @@ export interface StreamRequest {
 
 export type StreamMessage =
   | { type: 'chunk'; chunk: string }
+  | { type: 'replacement'; text: string }
   | { type: 'done' }
   | { type: 'error'; message: string };
 
