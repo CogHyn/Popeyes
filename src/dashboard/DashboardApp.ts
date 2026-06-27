@@ -1,6 +1,9 @@
 import { createElement } from '@/components/dom';
 import {
+  createShortcutStringFromKeyboardEvent,
   getDashboardSettings,
+  isSupportedShortcutString,
+  normalizeSafeShortcutString,
   resetDashboardSettings,
   saveDashboardSettings,
   type AnswerStyle,
@@ -32,6 +35,7 @@ class DashboardApp {
   private statusMessage = 'Loading settings...';
   private statusTone: StatusTone = 'idle';
   private isSaving = false;
+  private isRecordingShortcut = false;
 
   constructor() {
     this.render();
@@ -309,6 +313,47 @@ class DashboardApp {
           settings.behavior.enableWebSearch = checked;
         },
       }),
+      createToggleField({
+        label: 'Enable quick search shortcut',
+        checked: settings.shortcuts.enableQuickSearchShortcut,
+        onChange: (checked) => {
+          settings.shortcuts.enableQuickSearchShortcut = checked;
+        },
+      }),
+      createShortcutField({
+        label: 'Quick search shortcut',
+        value: settings.shortcuts.quickSearchShortcut,
+        isRecording: this.isRecordingShortcut,
+        description: 'Click Record, then press a modifier combo such as Ctrl+Shift+K or Alt+Space.',
+        onStartRecording: () => {
+          this.isRecordingShortcut = true;
+          this.statusMessage = 'Press the shortcut you want to use. Esc cancels.';
+          this.statusTone = 'idle';
+          this.render();
+        },
+        onCancelRecording: () => {
+          this.isRecordingShortcut = false;
+          this.statusMessage = 'Shortcut recording cancelled.';
+          this.statusTone = 'idle';
+          this.render();
+        },
+        onShortcutChange: (value) => {
+          const normalized = normalizeSafeShortcutString(value);
+          if (!normalized || !isSupportedShortcutString(normalized)) {
+            this.statusMessage = 'Shortcut must include at least one modifier plus one key.';
+            this.statusTone = 'error';
+            this.isRecordingShortcut = false;
+            this.render();
+            return;
+          }
+
+          settings.shortcuts.quickSearchShortcut = normalized;
+          this.isRecordingShortcut = false;
+          this.statusMessage = `Shortcut set to ${normalized}. Save changes to apply it.`;
+          this.statusTone = 'success';
+          this.render();
+        },
+      }),
     ]);
   }
 
@@ -428,6 +473,69 @@ function createToggleField(options: {
   ]);
 
   return createElement('div', { className: 'dashboard-field' }, [label]);
+}
+
+function createShortcutField(options: {
+  label: string;
+  value: string;
+  isRecording: boolean;
+  description: string;
+  onStartRecording: () => void;
+  onCancelRecording: () => void;
+  onShortcutChange: (value: string) => void;
+}): HTMLElement {
+  const value = createElement('kbd', {
+    className: options.isRecording ? 'dashboard-shortcut-value is-recording' : 'dashboard-shortcut-value',
+    text: options.isRecording ? 'Press keys...' : options.value,
+  });
+  const button = createElement('button', {
+    className: options.isRecording ? 'dashboard-secondary is-recording' : 'dashboard-secondary',
+    text: options.isRecording ? 'Cancel' : 'Record shortcut',
+    attributes: { type: 'button' },
+  });
+
+  button.addEventListener('click', () => {
+    if (options.isRecording) {
+      options.onCancelRecording();
+      return;
+    }
+
+    options.onStartRecording();
+  });
+
+  const recorder = createElement('div', {
+    className: options.isRecording ? 'dashboard-shortcut-recorder is-recording' : 'dashboard-shortcut-recorder',
+    attributes: {
+      tabindex: options.isRecording ? '0' : '-1',
+      role: 'button',
+      'aria-label': 'Record quick search shortcut',
+    },
+  }, [value, button]);
+
+  recorder.addEventListener('keydown', (event) => {
+    if (!options.isRecording) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (event.key === 'Escape') {
+      options.onCancelRecording();
+      return;
+    }
+
+    const shortcut = createShortcutStringFromKeyboardEvent(event);
+    if (shortcut) options.onShortcutChange(shortcut);
+  });
+
+  if (options.isRecording) {
+    window.setTimeout(() => recorder.focus({ preventScroll: true }), 0);
+  }
+
+  return createElement('div', { className: 'dashboard-field' }, [
+    createElement('span', { className: 'dashboard-label', text: options.label }),
+    recorder,
+    createElement('span', { className: 'dashboard-description', text: options.description }),
+  ]);
 }
 
 function createFieldShell(labelText: string, control: HTMLElement, description?: string): HTMLElement {

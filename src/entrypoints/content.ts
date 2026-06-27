@@ -1,8 +1,18 @@
 import { SelectionPopupApp } from '@/components/SelectionPopupApp';
+import {
+  createShortcutStringFromKeyboardEvent,
+  DASHBOARD_SETTINGS_KEY,
+  getDashboardSettings,
+  getDefaultDashboardSettings,
+  normalizeDashboardSettings,
+  normalizeSafeShortcutString,
+  type ShortcutSettings,
+} from '@/dashboard/settings';
 import { popupStyles } from '@/styles/popup';
 import type { VisibleSelection } from '@/types';
 import {
   calculatePopupPosition,
+  getQuickSearchSelection,
   getVisibleSelection,
   SELECTION_CONFIRM_DELAY_MS,
 } from '@/utils/selectionUtils';
@@ -25,6 +35,9 @@ export default defineContentScript({
     let activeSelection: VisibleSelection | undefined;
     let selectionTimer: number | undefined;
     let pointerStartedInsidePopup = false;
+    let shortcutSettings: ShortcutSettings = getDefaultDashboardSettings().shortcuts;
+
+    void refreshShortcutSettings();
 
     const closePopup = () => {
       app?.dispose();
@@ -34,12 +47,13 @@ export default defineContentScript({
       host.style.display = 'none';
     };
 
-    const openPopup = (selection: VisibleSelection) => {
+    const openPopup = (selection: VisibleSelection, options: { initialMode?: 'actions' | 'search' } = {}) => {
       activeSelection = selection;
       app?.dispose();
       app = new SelectionPopupApp({
         selection,
         onClose: closePopup,
+        initialMode: options.initialMode,
       });
 
       mount.replaceChildren(app.element);
@@ -64,6 +78,11 @@ export default defineContentScript({
       }
 
       openPopup(selection);
+    };
+
+    const openQuickSearchPopup = () => {
+      window.clearTimeout(selectionTimer);
+      openPopup(getQuickSearchSelection(), { initialMode: 'search' });
     };
 
     const openFromContextMenu = () => {
@@ -103,9 +122,19 @@ export default defineContentScript({
     }
 
     function handleKeyboard(event: KeyboardEvent) {
+      const isPopupInputEvent = isPopupTextInputEvent(event);
+
+      if (event.type === 'keydown' && !isPopupInputEvent && isQuickSearchShortcut(event)) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        openQuickSearchPopup();
+        return;
+      }
+
       if (!app) return;
 
-      if (isPopupTextInputEvent(event)) {
+      if (isPopupInputEvent) {
         if (event.type === 'keydown' && event.key === 'Escape') {
           event.preventDefault();
           event.stopPropagation();
@@ -160,10 +189,39 @@ export default defineContentScript({
       return event.key.toLowerCase() === 'a' && (event.ctrlKey || event.metaKey) && !event.altKey;
     }
 
+    async function refreshShortcutSettings(): Promise<void> {
+      try {
+        shortcutSettings = (await getDashboardSettings()).shortcuts;
+      } catch {
+        shortcutSettings = getDefaultDashboardSettings().shortcuts;
+      }
+    }
+
+    function isQuickSearchShortcut(event: KeyboardEvent): boolean {
+      if (!shortcutSettings.enableQuickSearchShortcut || event.repeat) return false;
+      return doesKeyboardEventMatchShortcut(event, shortcutSettings.quickSearchShortcut);
+    }
+
+    function doesKeyboardEventMatchShortcut(event: KeyboardEvent, shortcut: string): boolean {
+      const normalizedShortcut = normalizeSafeShortcutString(shortcut);
+      if (!normalizedShortcut) return false;
+
+      return createShortcutStringFromKeyboardEvent(event) === normalizedShortcut;
+    }
+
     browser.runtime.onMessage.addListener((message) => {
       if (message?.type !== 'OPEN_SELECTION_ASSIST') return;
 
       openFromContextMenu();
+    });
+
+    browser.storage.onChanged.addListener((changes, areaName) => {
+      if (areaName !== 'local') return;
+
+      const settingsChange = changes[DASHBOARD_SETTINGS_KEY];
+      if (!settingsChange) return;
+
+      shortcutSettings = normalizeDashboardSettings(settingsChange.newValue).shortcuts;
     });
 
     document.addEventListener('selectionchange', scheduleSelectionCheck);

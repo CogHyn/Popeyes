@@ -3,6 +3,9 @@ export type SearchProvider = 'tavily' | 'disabled' | 'mock';
 export type SummaryLength = 'short' | 'medium' | 'detailed';
 export type AnswerStyle = 'concise' | 'detailed' | 'bullet_points';
 
+export const DEFAULT_QUICK_SEARCH_SHORTCUT = 'Ctrl+Shift+K';
+const SHORTCUT_MODIFIERS = ['Ctrl', 'Alt', 'Shift', 'Meta'] as const;
+
 export interface AiProviderSettings {
   llmProvider: LlmProvider;
   groqApiKey: string;
@@ -24,10 +27,16 @@ export interface BehaviorSettings {
   enableWebSearch: boolean;
 }
 
+export interface ShortcutSettings {
+  enableQuickSearchShortcut: boolean;
+  quickSearchShortcut: string;
+}
+
 export interface DashboardSettings {
   provider: AiProviderSettings;
   prompts: PromptSettings;
   behavior: BehaviorSettings;
+  shortcuts: ShortcutSettings;
 }
 
 export const DASHBOARD_SETTINGS_KEY = 'ai-assistant-dashboard-settings';
@@ -72,6 +81,10 @@ export function getDefaultDashboardSettings(): DashboardSettings {
       includeSelectionContext: true,
       enableWebSearch: true,
     },
+    shortcuts: {
+      enableQuickSearchShortcut: true,
+      quickSearchShortcut: DEFAULT_QUICK_SEARCH_SHORTCUT,
+    },
   };
 }
 
@@ -104,6 +117,7 @@ export function normalizeDashboardSettings(value: unknown): DashboardSettings {
   const provider = asRecord(root.provider);
   const prompts = asRecord(root.prompts);
   const behavior = asRecord(root.behavior);
+  const shortcuts = asRecord(root.shortcuts);
 
   return {
     provider: {
@@ -124,7 +138,58 @@ export function normalizeDashboardSettings(value: unknown): DashboardSettings {
       includeSelectionContext: asBoolean(behavior.includeSelectionContext, defaults.behavior.includeSelectionContext),
       enableWebSearch: asBoolean(behavior.enableWebSearch, defaults.behavior.enableWebSearch),
     },
+    shortcuts: {
+      enableQuickSearchShortcut: asBoolean(
+        shortcuts.enableQuickSearchShortcut,
+        defaults.shortcuts.enableQuickSearchShortcut,
+      ),
+      quickSearchShortcut: normalizeSafeShortcutString(
+        asString(shortcuts.quickSearchShortcut, defaults.shortcuts.quickSearchShortcut),
+      ) || defaults.shortcuts.quickSearchShortcut,
+    },
   };
+}
+
+export function normalizeShortcutString(value: string): string {
+  const tokens = value
+    .split('+')
+    .map((token) => normalizeShortcutToken(token))
+    .filter(Boolean);
+  const modifiers = [
+    tokens.includes('Ctrl') ? 'Ctrl' : '',
+    tokens.includes('Alt') ? 'Alt' : '',
+    tokens.includes('Shift') ? 'Shift' : '',
+    tokens.includes('Meta') ? 'Meta' : '',
+  ].filter(Boolean);
+  const key = tokens.find((token) => !isShortcutModifier(token));
+
+  return key ? [...modifiers, key].join('+') : '';
+}
+
+export function normalizeSafeShortcutString(value: string): string {
+  const normalized = normalizeShortcutString(value);
+  return isSupportedShortcutString(normalized) ? normalized : '';
+}
+
+export function isSupportedShortcutString(value: string): boolean {
+  const parts = normalizeShortcutString(value).split('+').filter(Boolean);
+  const hasModifier = parts.some(isShortcutModifier);
+  const hasKey = parts.some((part) => !isShortcutModifier(part));
+
+  return hasModifier && hasKey;
+}
+
+export function createShortcutStringFromKeyboardEvent(event: KeyboardEvent): string {
+  const key = normalizeShortcutToken(event.key === ' ' ? 'Space' : event.key);
+  if (!key || isShortcutModifier(key)) return '';
+
+  return normalizeShortcutString([
+    event.ctrlKey ? 'Ctrl' : '',
+    event.altKey ? 'Alt' : '',
+    event.shiftKey ? 'Shift' : '',
+    event.metaKey ? 'Meta' : '',
+    key,
+  ].filter(Boolean).join('+'));
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -145,4 +210,20 @@ function asEnum<T extends string>(value: unknown, allowed: readonly T[], fallbac
   return typeof value === 'string' && allowed.includes(value as T)
     ? value as T
     : fallback;
+}
+
+function normalizeShortcutToken(value: string): string {
+  const token = value.trim().toLowerCase();
+  if (!token) return '';
+  if (token === 'control' || token === 'ctrl') return 'Ctrl';
+  if (token === 'option' || token === 'alt') return 'Alt';
+  if (token === 'shift') return 'Shift';
+  if (token === 'cmd' || token === 'command' || token === 'meta') return 'Meta';
+  if (token === 'space') return 'Space';
+  if (token.length === 1) return token.toUpperCase();
+  return token[0].toUpperCase() + token.slice(1);
+}
+
+function isShortcutModifier(value: string): boolean {
+  return SHORTCUT_MODIFIERS.includes(value as typeof SHORTCUT_MODIFIERS[number]);
 }

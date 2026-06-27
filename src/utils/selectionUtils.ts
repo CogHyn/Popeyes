@@ -33,6 +33,20 @@ export function getVisibleSelection(): VisibleSelection | null {
   };
 }
 
+export function getQuickSearchSelection(): VisibleSelection {
+  const visibleSelection = getVisibleSelection();
+  if (visibleSelection) return visibleSelection;
+
+  const activeInputContext = getActiveInputContext();
+  if (activeInputContext) return activeInputContext;
+
+  return {
+    text: '',
+    rect: getFallbackPopupRect(),
+    context: getPageContext(),
+  };
+}
+
 export function calculatePopupPosition(rect: DOMRect): PopupPosition {
   const desiredLeft = rect.right + POPUP_GAP;
   const desiredTop = rect.bottom + POPUP_GAP;
@@ -43,6 +57,43 @@ export function calculatePopupPosition(rect: DOMRect): PopupPosition {
     left: clamp(desiredLeft, VIEWPORT_MARGIN, maxLeft),
     top: clamp(desiredTop, VIEWPORT_MARGIN, maxTop),
   };
+}
+
+function getActiveInputContext(): VisibleSelection | null {
+  const active = document.activeElement;
+  if (!(active instanceof HTMLTextAreaElement || active instanceof HTMLInputElement)) return null;
+  if (!active.matches(INPUT_SELECTOR)) return null;
+
+  const rect = active.getBoundingClientRect();
+  if (!hasArea(rect)) return null;
+
+  const caret = active.selectionStart ?? 0;
+  const contextStart = Math.max(0, caret - CONTEXT_RADIUS);
+  const contextEnd = Math.min(active.value.length, caret + CONTEXT_RADIUS);
+
+  return {
+    text: '',
+    rect,
+    context: active.value.slice(contextStart, contextEnd),
+  };
+}
+
+function getFallbackPopupRect(): DOMRect {
+  const left = Math.max(VIEWPORT_MARGIN, window.innerWidth / 2 - POPUP_WIDTH / 2 - POPUP_GAP);
+  const top = Math.max(VIEWPORT_MARGIN, window.innerHeight * 0.22);
+
+  return new DOMRect(left, top, 0, 0);
+}
+
+function getPageContext(): string {
+  const title = document.title.trim();
+  const url = window.location.href;
+  const bodyText = (document.body?.innerText ?? '').replace(/\s+/g, ' ').trim();
+  const clippedBody = bodyText.length > CONTEXT_RADIUS * 2
+    ? bodyText.slice(0, CONTEXT_RADIUS * 2).trim()
+    : bodyText;
+
+  return [title, url, clippedBody].filter(Boolean).join('\n');
 }
 
 export async function copyText(text: string): Promise<void> {

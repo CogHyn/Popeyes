@@ -198,6 +198,7 @@ button {
 .dashboard-input:focus,
 .dashboard-select:focus,
 .dashboard-textarea:focus,
+.dashboard-shortcut-recorder:focus,
 .dashboard-tab:focus-visible,
 .dashboard-primary:focus-visible,
 .dashboard-secondary:focus-visible {
@@ -219,6 +220,43 @@ button {
   width: 18px;
   height: 18px;
   accent-color: #2563eb;
+}
+
+.dashboard-shortcut-recorder {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #ffffff;
+  padding: 7px;
+}
+
+.dashboard-shortcut-recorder.is-recording {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.dashboard-shortcut-value {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #f9fafb;
+  color: #111827;
+  padding: 6px 8px;
+  font-size: 13px;
+  font-weight: 760;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-shortcut-value.is-recording {
+  border-color: #93c5fd;
+  background: #dbeafe;
+  color: #1e40af;
 }
 
 .dashboard-footer {
@@ -257,6 +295,11 @@ button {
 
 .dashboard-secondary:hover {
   background: #f3f4f6;
+}
+
+.dashboard-secondary.is-recording {
+  border-color: #bfdbfe;
+  color: #1d4ed8;
 }
 
 .dashboard-primary:disabled,

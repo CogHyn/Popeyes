@@ -13,6 +13,7 @@ const SUMMARY_LENGTH_THRESHOLD = 1000;
 interface SelectionPopupAppOptions {
   selection: VisibleSelection;
   onClose: () => void;
+  initialMode?: 'actions' | 'search';
 }
 
 export class SelectionPopupApp {
@@ -26,6 +27,7 @@ export class SelectionPopupApp {
   private actions: Action[] = rankActions(ACTIONS, 'translate');
   private activeActionId: ActionId = this.actions[0].id;
   private query = '';
+  private isQueryOpen = false;
   private state: PopupState = 'list';
   private output = '';
   private replacementText = '';
@@ -33,9 +35,10 @@ export class SelectionPopupApp {
   private chatMessages: ChatMessage[] = [];
   private port?: Browser.runtime.Port;
 
-  constructor({ selection, onClose }: SelectionPopupAppOptions) {
+  constructor({ selection, onClose, initialMode = 'actions' }: SelectionPopupAppOptions) {
     this.selection = selection;
     this.onClose = onClose;
+    this.isQueryOpen = initialMode === 'search';
     this.classifyIntent();
     this.render();
   }
@@ -82,6 +85,7 @@ export class SelectionPopupApp {
 
     if (event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey) {
       this.query += event.key;
+      this.isQueryOpen = true;
       this.render();
       event.preventDefault();
       return;
@@ -147,12 +151,12 @@ export class SelectionPopupApp {
       });
     }
 
-    if (this.query) {
+    if (this.isQueryOpen || this.query) {
       return SearchQueryView({
         query: this.query,
         onQueryChange: (query) => {
           this.query = query;
-          if (!query) this.render();
+          this.isQueryOpen = true;
         },
         onSubmit: () => this.executeChat(this.query.trim()),
       });
@@ -307,6 +311,7 @@ export class SelectionPopupApp {
   private resetToList(): void {
     this.disconnectPort();
     this.query = '';
+    this.isQueryOpen = false;
     this.output = '';
     this.replacementText = '';
     this.errorMessage = '';
@@ -389,7 +394,7 @@ function createHeader(selectionText: string, onClose: () => void): HTMLElement {
   return createElement('header', { className: 'assist-header' }, [
     createElement('div', { className: 'assist-title' }, [
       createElement('div', { className: 'assist-kicker', text: 'AI command' }),
-      createElement('div', { className: 'assist-selection', text: selectionText }),
+      createElement('div', { className: 'assist-selection', text: selectionText || 'Quick search' }),
     ]),
     createButton('assist-close', 'x', onClose, { title: 'Close', ariaLabel: 'Close popup' }),
   ]);
