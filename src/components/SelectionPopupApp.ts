@@ -1,8 +1,9 @@
 import { ActionList } from '@/components/ActionList';
+import { ChatView } from '@/components/ChatView';
 import { createButton, createElement } from '@/components/dom';
 import { SearchQueryView } from '@/components/SearchQueryView';
 import { StreamView } from '@/components/StreamView';
-import type { Action, ActionId, PopupState, StreamMessage, StreamRequest, VisibleSelection } from '@/types';
+import type { Action, ActionId, ChatMessage, PopupState, StreamMessage, StreamRequest, VisibleSelection } from '@/types';
 import { ACTIONS } from '@/types';
 import { copyText, replaceSelectedText } from '@/utils/selectionUtils';
 
@@ -29,6 +30,7 @@ export class SelectionPopupApp {
   private output = '';
   private replacementText = '';
   private errorMessage = '';
+  private chatMessages: ChatMessage[] = [];
   private port?: Browser.runtime.Port;
 
   constructor({ selection, onClose }: SelectionPopupAppOptions) {
@@ -64,9 +66,9 @@ export class SelectionPopupApp {
     if (event.key === 'Enter') {
       event.preventDefault();
       if (this.query.trim()) {
-        this.execute('search');
+        this.executeChat(this.query.trim());
       } else {
-        this.execute(this.activeActionId);
+        this.executeAction(this.activeActionId);
       }
       return;
     }
@@ -120,6 +122,16 @@ export class SelectionPopupApp {
   }
 
   private renderBody(): HTMLElement {
+    if (this.state === 'chat-streaming' || this.state === 'chat-completed') {
+      return ChatView({
+        state: this.state,
+        messages: this.chatMessages,
+        onBack: () => this.resetToList(),
+        onCopy: () => void copyText(this.getAssistantChatText()),
+        onStop: () => this.stopChatStream(),
+      });
+    }
+
     if (this.state === 'streaming' || this.state === 'completed' || this.state === 'error') {
       return StreamView({
         state: this.state,
@@ -142,7 +154,7 @@ export class SelectionPopupApp {
           this.query = query;
           if (!query) this.render();
         },
-        onSubmit: () => this.execute('search'),
+        onSubmit: () => this.executeChat(this.query.trim()),
       });
     }
 
@@ -153,11 +165,12 @@ export class SelectionPopupApp {
     });
   }
 
-  private execute(mode: StreamRequest['mode']): void {
+  private executeAction(mode: ActionId): void {
     this.disconnectPort();
     this.output = '';
     this.replacementText = '';
     this.errorMessage = '';
+    this.chatMessages = [];
     this.state = 'streaming';
     this.render();
 
@@ -211,6 +224,74 @@ export class SelectionPopupApp {
     }
   }
 
+  private executeChat(query: string): void {
+    if (!query) return;
+
+    this.disconnectPort();
+    this.output = '';
+    this.replacementText = '';
+    this.errorMessage = '';
+    this.chatMessages = [
+      { role: 'assistant', content: '', status: 'streaming' },
+    ];
+    this.state = 'chat-streaming';
+    this.render();
+
+    const request: StreamRequest = {
+      mode: 'search',
+      selectedText: this.selection.text,
+      query,
+      context: this.selection.context,
+    };
+
+    try {
+      const port = browser.runtime.connect({ name: 'ai-stream' });
+      this.port = port;
+
+      port.onMessage.addListener((message: StreamMessage) => {
+        if (message.type === 'chunk') {
+          this.appendAssistantChatText(message.chunk);
+          this.render();
+          return;
+        }
+
+        if (message.type === 'replacement') {
+          return;
+        }
+
+        if (message.type === 'done') {
+          this.markAssistantChatDone();
+          this.state = 'chat-completed';
+          this.render();
+          return;
+        }
+
+        this.setAssistantChatError(message.message);
+        this.state = 'chat-completed';
+        this.render();
+      });
+
+      port.onDisconnect.addListener(() => {
+        if (this.state === 'chat-streaming') {
+          if (this.getAssistantChatText()) {
+            this.markAssistantChatDone();
+          } else {
+            this.setAssistantChatError('Luồng trả lời đã dừng trước khi có kết quả.');
+          }
+
+          this.state = 'chat-completed';
+          this.render();
+        }
+      });
+
+      port.postMessage(request);
+    } catch {
+      this.setAssistantChatError('Extension vừa được cập nhật. Refresh trang này rồi thử lại nhé.');
+      this.state = 'chat-completed';
+      this.render();
+    }
+  }
+
   private moveActiveAction(delta: number): void {
     const currentIndex = this.actions.findIndex((action) => action.id === this.activeActionId);
     const nextIndex = (currentIndex + delta + this.actions.length) % this.actions.length;
@@ -229,6 +310,7 @@ export class SelectionPopupApp {
     this.output = '';
     this.replacementText = '';
     this.errorMessage = '';
+    this.chatMessages = [];
     this.state = 'list';
     this.render();
   }
@@ -237,6 +319,57 @@ export class SelectionPopupApp {
     this.disconnectPort();
     this.state = this.output ? 'completed' : 'list';
     this.render();
+  }
+
+  private stopChatStream(): void {
+    if (this.getAssistantChatText()) {
+      this.markAssistantChatDone();
+    } else {
+      this.setAssistantChatDone('Đã dừng trả lời.');
+    }
+
+    this.state = 'chat-completed';
+    this.disconnectPort();
+    this.render();
+  }
+
+  private appendAssistantChatText(text: string): void {
+    const assistant = this.getAssistantMessage();
+    if (!assistant) return;
+
+    assistant.content += text;
+    assistant.status = 'streaming';
+  }
+
+  private markAssistantChatDone(): void {
+    const assistant = this.getAssistantMessage();
+    if (!assistant) return;
+
+    assistant.status = 'done';
+  }
+
+  private setAssistantChatDone(text: string): void {
+    const assistant = this.getAssistantMessage();
+    if (!assistant) return;
+
+    assistant.content = text;
+    assistant.status = 'done';
+  }
+
+  private setAssistantChatError(message: string): void {
+    const assistant = this.getAssistantMessage();
+    if (!assistant) return;
+
+    assistant.content = message;
+    assistant.status = 'error';
+  }
+
+  private getAssistantChatText(): string {
+    return this.getAssistantMessage()?.content ?? '';
+  }
+
+  private getAssistantMessage(): ChatMessage | undefined {
+    return this.chatMessages.findLast((message) => message.role === 'assistant');
   }
 
   private disconnectPort(): void {

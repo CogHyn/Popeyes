@@ -104,16 +104,17 @@ export default defineContentScript({
     function handleKeyboard(event: KeyboardEvent) {
       if (!app) return;
 
-      event.stopPropagation();
       if (isPopupTextInputEvent(event)) {
         if (event.type === 'keydown' && event.key === 'Escape') {
           event.preventDefault();
+          event.stopPropagation();
           app.handleKey(event);
         }
 
         return;
       }
 
+      event.stopPropagation();
       if (event.type !== 'keydown') {
         event.preventDefault();
         return;

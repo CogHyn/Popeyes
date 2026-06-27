@@ -1,14 +1,17 @@
-import { MockSearchEngine } from '@/ai_engine/search/search.mock';
-import { MockSummaryEngine } from '@/ai_engine/summary/summary.mock';
-import { MockTranslateEngine } from '@/ai_engine/translate/translate.mock';
+import { TavilySearchEngine } from '@/ai_engine/search/search.tavily';
+import { planSearchQueryWithGroq } from '@/ai_engine/search/search.groq';
+import { completeWithGroq } from '@/ai_engine/shared/groq';
+import { GroqSummaryEngine } from '@/ai_engine/summary/summary.groq';
+import { GroqTranslateEngine } from '@/ai_engine/translate/translate.groq';
+import { getErrorMessage } from '@/ai_engine/shared/errors';
 import type { ActionId, StreamMessage, StreamRequest } from '@/types';
 
 const VIETNAMESE_RE = /[ăâđêôơưáàảãạấầẩẫậắằẳẵặéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵ]/i;
 const SUMMARY_LENGTH_THRESHOLD = 1000;
 const CONTEXT_MENU_ID = 'selection-assist-open';
-const translateEngine = new MockTranslateEngine();
-const summaryEngine = new MockSummaryEngine();
-const searchEngine = new MockSearchEngine();
+const translateEngine = new GroqTranslateEngine();
+const summaryEngine = new GroqSummaryEngine();
+const searchEngine = new TavilySearchEngine();
 
 export default defineBackground(() => {
   void ensureContextMenu();
@@ -73,7 +76,7 @@ async function streamDraftResponse(
   isCancelled: () => boolean,
 ): Promise<void> {
   try {
-    const response = await buildMockResponse(request);
+    const response = await buildAiResponse(request);
 
     if (response.replacementText) {
       postStreamMessage(port, { type: 'replacement', text: response.replacementText });
@@ -88,17 +91,17 @@ async function streamDraftResponse(
     if (!isCancelled()) {
       postStreamMessage(port, { type: 'done' });
     }
-  } catch {
+  } catch (error) {
     if (!isCancelled()) {
       postStreamMessage(port, {
         type: 'error',
-        message: 'Không thể tạo phản hồi lúc này. Thử lại sau nhé.',
+        message: `Không thể tạo phản hồi lúc này: ${getErrorMessage(error)}`,
       });
     }
   }
 }
 
-async function buildMockResponse(request: StreamRequest): Promise<{ displayText: string; replacementText?: string }> {
+async function buildAiResponse(request: StreamRequest): Promise<{ displayText: string; replacementText?: string }> {
   const selectedText = request.selectedText.trim();
 
   if (request.mode === 'translate') {
@@ -124,24 +127,62 @@ async function buildMockResponse(request: StreamRequest): Promise<{ displayText:
   }
 
   const query = request.query?.trim() || selectedText;
-  const response = await searchEngine.search({
+  const plannedSearchQuery = await planSearchQueryWithGroq({
     query,
+    selectedText,
+    context: request.context,
   });
-  const resultLines = response.results.map((result, index) => {
-    return `${index + 1}. ${result.title}\n   ${result.link}`;
+  const response = await searchEngine.search({
+    query: plannedSearchQuery,
   });
+  const answer = await completeWithGroq(
+    [
+      'You answer search questions for Vietnamese users.',
+      'Return only the direct answer, with no preface, no labels, and no markdown heading.',
+      'Be as concise as possible while still answering the question.',
+      'Prioritize the highlighted context over web results.',
+      'Use web results only as supporting context.',
+      'Do not print a source/link list unless the user explicitly asks for links or sources.',
+      'If the available information is insufficient, say that briefly.',
+    ].join(' '),
+    buildSearchAnswerPrompt(query, plannedSearchQuery, selectedText, request.context, response.results),
+    350,
+  );
 
   return {
-    displayText: [
-      `[Mock Search]`,
-      `Câu hỏi: ${query}`,
-      '',
-      'Câu trả lời nháp: dựa trên đoạn đã chọn và kết quả mock, đây là phản hồi dùng để test UI streaming/search mode trước khi nối Tavily thật.',
-      '',
-      'Nguồn mock:',
-      ...resultLines,
-    ].join('\n'),
+    displayText: answer,
   };
+}
+
+function buildSearchAnswerPrompt(
+  query: string,
+  plannedSearchQuery: string,
+  selectedText: string,
+  context: string | undefined,
+  results: Array<{ title: string; link: string; snippet?: string }>,
+): string {
+  const resultLines = results.length
+    ? results.map((result, index) => {
+        const snippet = result.snippet ? `\nSnippet: ${result.snippet}` : '';
+        return `${index + 1}. ${result.title}\nURL: ${result.link}${snippet}`;
+      })
+    : ['No web results found.'];
+
+  return [
+    `User question: ${query}`,
+    `Web search query used: ${plannedSearchQuery}`,
+    '',
+    'Highlighted context:',
+    selectedText || '(none)',
+    '',
+    'Surrounding page/input context:',
+    context?.trim() || '(none)',
+    '',
+    'Retrieved links/results:',
+    ...resultLines,
+    '',
+    'Answer the user question directly and briefly.',
+  ].join('\n');
 }
 
 function chunkText(text: string, size: number): string[] {

@@ -5,7 +5,7 @@ export const popupStyles = `
     z-index: 2147483647;
     width: 340px;
     min-height: 164px;
-    max-height: 248px;
+    max-height: 320px;
     color-scheme: light;
     font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   }
@@ -23,7 +23,7 @@ export const popupStyles = `
 
   .assist-popup {
     width: 340px;
-    max-height: 248px;
+    max-height: 320px;
     overflow: hidden;
     border: 1px solid rgba(15, 23, 42, 0.12);
     border-radius: 8px;
@@ -211,6 +211,39 @@ export const popupStyles = `
     color: #64748b;
     font-size: 11px;
     line-height: 1.35;
+  }
+
+  .chat-shell {
+    min-height: 0;
+    display: grid;
+    gap: 8px;
+  }
+
+  .chat-transcript {
+    min-height: 156px;
+    max-height: 230px;
+    overflow: auto;
+    padding: 2px;
+  }
+
+  .chat-answer {
+    width: 100%;
+    min-height: 156px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    color: #0f172a;
+    padding: 8px 10px;
+    font-size: 13px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .chat-answer.is-error {
+    border-color: #fecaca;
+    background: #fef2f2;
+    color: #991b1b;
   }
 
   .stream-output {

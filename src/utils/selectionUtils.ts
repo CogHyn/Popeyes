@@ -3,7 +3,7 @@ import type { PopupPosition, VisibleSelection } from '@/types';
 export const SELECTION_CONFIRM_DELAY_MS = 500;
 export const MIN_SELECTION_LENGTH = 2;
 export const POPUP_WIDTH = 340;
-export const POPUP_HEIGHT = 248;
+export const POPUP_HEIGHT = 320;
 export const POPUP_GAP = 10;
 export const VIEWPORT_MARGIN = 12;
 const CONTEXT_RADIUS = 500;
