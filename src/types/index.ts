@@ -1,6 +1,7 @@
 export type ActionId = 'translate' | 'summary';
 export type StreamMode = ActionId | 'search';
 export type PopupState = 'list' | 'streaming' | 'completed' | 'error' | 'chat-streaming' | 'chat-completed';
+export type TranslateTargetLanguage = 'en' | 'vn';
 
 export type ChatRole = 'user' | 'assistant';
 export type ChatMessageStatus = 'streaming' | 'done' | 'error';
@@ -24,6 +25,10 @@ export interface VisibleSelection {
   rect: DOMRect;
   context: string;
   sourceElement?: HTMLInputElement | HTMLTextAreaElement;
+  sourceEditableElement?: HTMLElement;
+  sourceRange?: Range;
+  sourceStart?: number;
+  sourceEnd?: number;
 }
 
 export interface PopupPosition {
@@ -36,6 +41,7 @@ export interface StreamRequest {
   selectedText: string;
   query?: string;
   context?: string;
+  targetLanguage?: TranslateTargetLanguage;
 }
 
 export type StreamMessage =
@@ -48,7 +54,7 @@ export const ACTIONS: Action[] = [
   {
     id: 'translate',
     label: 'Translate',
-    description: 'Dịch nhanh đoạn đã chọn sang tiếng Việt.',
+    description: 'Dịch nhanh đoạn đã chọn sang EN/VN.',
     hotkey: '1',
     confidence: 0.72,
   },

@@ -9,6 +9,7 @@ export const VIEWPORT_MARGIN = 12;
 const CONTEXT_RADIUS = 500;
 
 const INPUT_SELECTOR = 'textarea,input[type="text"],input[type="search"],input:not([type])';
+const EDITABLE_SELECTOR = '[contenteditable=""],[contenteditable="true"],[role="textbox"]';
 
 export function getVisibleSelection(): VisibleSelection | null {
   const inputSelection = getInputSelection();
@@ -25,11 +26,14 @@ export function getVisibleSelection(): VisibleSelection | null {
   const range = selection.getRangeAt(0);
   const rect = getUsableRect(range);
   if (!rect) return null;
+  const sourceEditableElement = getEditableElement(range.commonAncestorContainer);
 
   return {
     text,
     rect,
-    context: getSurroundingContext(text),
+    context: getSurroundingContext(text, sourceEditableElement),
+    sourceEditableElement,
+    sourceRange: range.cloneRange(),
   };
 }
 
@@ -63,11 +67,18 @@ export async function copyText(text: string): Promise<void> {
 
 export function replaceSelectedText(selection: VisibleSelection, value: string): boolean {
   if (selection.sourceElement) {
-    const element = selection.sourceElement;
-    const start = element.selectionStart ?? 0;
-    const end = element.selectionEnd ?? start;
-    element.setRangeText(value, start, end, 'end');
-    element.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertReplacementText', data: value }));
+    return replaceInputSelection(selection, value);
+  }
+
+  if (selection.sourceEditableElement) {
+    return replaceEditableSelection(selection, value);
+  }
+
+  const sourceRange = selection.sourceRange;
+  if (sourceRange && isConnectedRange(sourceRange)) {
+    sourceRange.deleteContents();
+    sourceRange.insertNode(document.createTextNode(value));
+    window.getSelection()?.removeAllRanges();
     return true;
   }
 
@@ -78,6 +89,61 @@ export function replaceSelectedText(selection: VisibleSelection, value: string):
   range.deleteContents();
   range.insertNode(document.createTextNode(value));
   activeSelection.removeAllRanges();
+  return true;
+}
+
+function replaceInputSelection(selection: VisibleSelection, value: string): boolean {
+  const element = selection.sourceElement;
+  if (!element) return false;
+
+  const start = selection.sourceStart ?? element.selectionStart ?? 0;
+  const end = selection.sourceEnd ?? element.selectionEnd ?? start;
+
+  element.focus({ preventScroll: true });
+  element.setSelectionRange(start, end);
+  element.setRangeText(value, start, end, 'end');
+  element.dispatchEvent(new InputEvent('input', {
+    bubbles: true,
+    composed: true,
+    inputType: 'insertReplacementText',
+    data: value,
+  }));
+
+  return true;
+}
+
+function replaceEditableSelection(selection: VisibleSelection, value: string): boolean {
+  const element = selection.sourceEditableElement;
+  const sourceRange = selection.sourceRange;
+  if (!element || !sourceRange || !element.isConnected || !isConnectedRange(sourceRange)) return false;
+
+  element.focus({ preventScroll: true });
+
+  const activeSelection = window.getSelection();
+  if (!activeSelection) return false;
+
+  activeSelection.removeAllRanges();
+  activeSelection.addRange(sourceRange.cloneRange());
+
+  if (document.execCommand('insertText', false, value)) {
+    return true;
+  }
+
+  const range = activeSelection.rangeCount > 0 ? activeSelection.getRangeAt(0) : sourceRange.cloneRange();
+  range.deleteContents();
+  const textNode = document.createTextNode(value);
+  range.insertNode(textNode);
+  range.setStartAfter(textNode);
+  range.setEndAfter(textNode);
+  activeSelection.removeAllRanges();
+  activeSelection.addRange(range);
+  element.dispatchEvent(new InputEvent('input', {
+    bubbles: true,
+    composed: true,
+    inputType: 'insertReplacementText',
+    data: value,
+  }));
+
   return true;
 }
 
@@ -104,6 +170,8 @@ function getInputSelection(): VisibleSelection | null {
     rect,
     context: active.value.slice(contextStart, contextEnd),
     sourceElement: active,
+    sourceStart: start,
+    sourceEnd: end,
   };
 }
 
@@ -116,8 +184,8 @@ function getUsableRect(range: Range): DOMRect | null {
   return hasArea(rect) ? rect : null;
 }
 
-function getSurroundingContext(selectedText: string): string {
-  const bodyText = document.body?.innerText ?? '';
+function getSurroundingContext(selectedText: string, sourceElement?: HTMLElement): string {
+  const bodyText = sourceElement?.innerText || sourceElement?.textContent || document.body?.innerText || '';
   if (!bodyText) return selectedText;
 
   const index = bodyText.indexOf(selectedText);
@@ -126,6 +194,23 @@ function getSurroundingContext(selectedText: string): string {
   const start = Math.max(0, index - CONTEXT_RADIUS);
   const end = Math.min(bodyText.length, index + selectedText.length + CONTEXT_RADIUS);
   return bodyText.slice(start, end);
+}
+
+function getEditableElement(node: Node): HTMLElement | undefined {
+  const element = node instanceof HTMLElement ? node : node.parentElement;
+  const editable = element?.closest(EDITABLE_SELECTOR);
+  if (!(editable instanceof HTMLElement)) return undefined;
+  if (editable.getAttribute('contenteditable') === 'false') return undefined;
+
+  return editable;
+}
+
+function isConnectedRange(range: Range): boolean {
+  return isConnectedNode(range.startContainer) && isConnectedNode(range.endContainer);
+}
+
+function isConnectedNode(node: Node): boolean {
+  return node.isConnected || document.contains(node);
 }
 
 function hasArea(rect: DOMRect): boolean {

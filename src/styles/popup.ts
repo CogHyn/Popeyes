@@ -101,6 +101,11 @@ export const popupStyles = `
     gap: 7px;
   }
 
+  .action-panel {
+    display: grid;
+    gap: 8px;
+  }
+
   .action-button {
     width: 100%;
     min-height: 52px;
@@ -185,6 +190,51 @@ export const popupStyles = `
     color: #64748b;
     font-size: 11px;
     font-weight: 700;
+  }
+
+  .translate-target {
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #ffffff;
+    padding: 6px 7px 6px 10px;
+  }
+
+  .translate-target-label {
+    color: #475569;
+    font-size: 12px;
+    line-height: 1.2;
+    font-weight: 720;
+  }
+
+  .translate-target-options {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .target-option {
+    min-width: 38px;
+    height: 24px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: #f1f5f9;
+    color: #475569;
+    padding: 0 8px;
+    font-size: 11px;
+    font-weight: 780;
+    cursor: pointer;
+  }
+
+  .target-option:hover,
+  .target-option.is-active {
+    border-color: #2563eb;
+    background: #eff6ff;
+    color: #1d4ed8;
   }
 
   .query-shell {

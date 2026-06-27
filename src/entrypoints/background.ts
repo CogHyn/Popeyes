@@ -107,7 +107,7 @@ async function buildAiResponse(request: StreamRequest): Promise<{ displayText: s
   if (request.mode === 'translate') {
     const response = await translateEngine.translate({
       text: selectedText,
-      targetLanguage: 'vi',
+      targetLanguage: getTranslateTargetLanguage(request.targetLanguage),
     });
 
     return {
@@ -152,6 +152,10 @@ async function buildAiResponse(request: StreamRequest): Promise<{ displayText: s
   return {
     displayText: answer,
   };
+}
+
+function getTranslateTargetLanguage(targetLanguage: StreamRequest['targetLanguage']): string {
+  return targetLanguage === 'en' ? 'English' : 'Vietnamese';
 }
 
 function buildSearchAnswerPrompt(

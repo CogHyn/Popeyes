@@ -3,7 +3,16 @@ import { ChatView } from '@/components/ChatView';
 import { createButton, createElement } from '@/components/dom';
 import { SearchQueryView } from '@/components/SearchQueryView';
 import { StreamView } from '@/components/StreamView';
-import type { Action, ActionId, ChatMessage, PopupState, StreamMessage, StreamRequest, VisibleSelection } from '@/types';
+import type {
+  Action,
+  ActionId,
+  ChatMessage,
+  PopupState,
+  StreamMessage,
+  StreamRequest,
+  TranslateTargetLanguage,
+  VisibleSelection,
+} from '@/types';
 import { ACTIONS } from '@/types';
 import { copyText, replaceSelectedText } from '@/utils/selectionUtils';
 
@@ -31,11 +40,13 @@ export class SelectionPopupApp {
   private replacementText = '';
   private errorMessage = '';
   private chatMessages: ChatMessage[] = [];
+  private translateTargetLanguage: TranslateTargetLanguage = 'vn';
   private port?: Browser.runtime.Port;
 
   constructor({ selection, onClose }: SelectionPopupAppOptions) {
     this.selection = selection;
     this.onClose = onClose;
+    this.translateTargetLanguage = inferTranslateTarget(selection.text);
     this.classifyIntent();
     this.render();
   }
@@ -141,7 +152,9 @@ export class SelectionPopupApp {
         onCopy: () => void copyText(this.output),
         onInsert: () => {
           const textToInsert = this.replacementText || this.output;
-          if (textToInsert) replaceSelectedText(this.selection, textToInsert);
+          if (textToInsert && replaceSelectedText(this.selection, textToInsert)) {
+            this.onClose();
+          }
         },
         onStop: () => this.stopStream(),
       });
@@ -158,11 +171,21 @@ export class SelectionPopupApp {
       });
     }
 
-    return ActionList({
+    const actionList = ActionList({
       actions: this.actions,
       activeActionId: this.activeActionId,
       onSelect: (actionId) => this.selectAction(actionId),
     });
+
+    if (this.activeActionId !== 'translate') return actionList;
+
+    return createElement('div', { className: 'action-panel' }, [
+      actionList,
+      createTranslateTargetControl(this.translateTargetLanguage, (targetLanguage) => {
+        this.translateTargetLanguage = targetLanguage;
+        this.render();
+      }),
+    ]);
   }
 
   private executeAction(mode: ActionId): void {
@@ -179,6 +202,7 @@ export class SelectionPopupApp {
       selectedText: this.selection.text,
       query: this.query.trim() || undefined,
       context: this.selection.context,
+      targetLanguage: mode === 'translate' ? this.translateTargetLanguage : undefined,
     };
 
     try {
@@ -398,6 +422,33 @@ function createHeader(selectionText: string, onClose: () => void): HTMLElement {
 function inferAction(text: string): ActionId {
   if (VIETNAMESE_RE.test(text) || text.length >= SUMMARY_LENGTH_THRESHOLD) return 'summary';
   return 'translate';
+}
+
+function inferTranslateTarget(text: string): TranslateTargetLanguage {
+  return VIETNAMESE_RE.test(text) ? 'en' : 'vn';
+}
+
+function createTranslateTargetControl(
+  targetLanguage: TranslateTargetLanguage,
+  onChange: (targetLanguage: TranslateTargetLanguage) => void,
+): HTMLElement {
+  return createElement('div', { className: 'translate-target' }, [
+    createElement('span', { className: 'translate-target-label', text: 'Target' }),
+    createElement('div', { className: 'translate-target-options', attributes: { role: 'group', 'aria-label': 'Translate target language' } }, [
+      createButton(
+        `target-option${targetLanguage === 'vn' ? ' is-active' : ''}`,
+        'VN',
+        () => onChange('vn'),
+        { ariaLabel: 'Translate to Vietnamese' },
+      ),
+      createButton(
+        `target-option${targetLanguage === 'en' ? ' is-active' : ''}`,
+        'EN',
+        () => onChange('en'),
+        { ariaLabel: 'Translate to English' },
+      ),
+    ]),
+  ]);
 }
 
 function rankActions(actions: Action[], recommendedActionId: ActionId): Action[] {
