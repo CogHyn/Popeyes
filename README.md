@@ -3,6 +3,9 @@
 Chrome extension thử nghiệm cho workflow: bôi đen text trên web, mở popup inline cạnh selection, chọn Translate/Summary hoặc gõ câu hỏi, rồi stream kết quả ngay trong popup.
 
 Hiện dự án đang ở giai đoạn **UI + real API adapters cơ bản**. Background gọi Groq cho Translate/Summary và Tavily cho Search thông qua các interface trong `src/ai_engine`. Mock engines vẫn được giữ lại để test/dev.
+## 0. Demo
+![](./src/Demo Video.mp4)
+<video src="./src/Demo Video.mp4" controls preload></video>
 
 ## 1. Sản phẩm hiện làm gì
 
