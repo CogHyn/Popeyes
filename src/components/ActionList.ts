@@ -13,7 +13,8 @@ export function ActionList({ actions, activeActionId, onSelect }: ActionListProp
     attributes: { role: 'listbox', 'aria-label': 'AI actions' },
   });
 
-  for (const action of actions) {
+  actions.forEach((action, index) => {
+    const hotkey = String(index + 1);
     const button = createElement(
       'button',
       {
@@ -33,13 +34,13 @@ export function ActionList({ actions, activeActionId, onSelect }: ActionListProp
         ]),
         createElement('span', { className: 'action-meta' }, [
           createElement('span', { className: 'confidence', text: `${Math.round(action.confidence * 100)}%` }),
-          createElement('span', { className: 'hotkey', text: action.hotkey }),
+          createElement('span', { className: 'hotkey', text: hotkey }),
         ]),
       ],
     );
 
     list.append(button);
-  }
+  });
 
   return list;
 }

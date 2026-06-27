@@ -72,7 +72,7 @@ export class SelectionPopupApp {
 
     if ((event.key === '1' || event.key === '2') && !this.query) {
       event.preventDefault();
-      const action = this.actions.find((item) => item.hotkey === event.key);
+      const action = this.actions[Number(event.key) - 1];
       if (action) this.execute(action.id);
       return;
     }

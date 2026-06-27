@@ -1,6 +1,6 @@
 import type { PopupPosition, VisibleSelection } from '@/types';
 
-export const SELECTION_CONFIRM_DELAY_MS = 350;
+export const SELECTION_CONFIRM_DELAY_MS = 2000;
 export const MIN_SELECTION_LENGTH = 2;
 export const POPUP_WIDTH = 340;
 export const POPUP_HEIGHT = 248;

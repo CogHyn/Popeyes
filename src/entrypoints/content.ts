@@ -48,11 +48,11 @@ export default defineContentScript({
     };
 
     const confirmSelection = () => {
-      if (pointerStartedInsidePopup) return;
+      if (pointerStartedInsidePopup || isPopupInputFocused()) return;
 
       const selection = getVisibleSelection();
       if (!selection) {
-        closePopup();
+        if (!app) closePopup();
         return;
       }
 
@@ -61,6 +61,15 @@ export default defineContentScript({
         updatePopupPosition();
         return;
       }
+
+      openPopup(selection);
+    };
+
+    const openFromContextMenu = () => {
+      window.clearTimeout(selectionTimer);
+
+      const selection = getVisibleSelection();
+      if (!selection) return;
 
       openPopup(selection);
     };
@@ -113,15 +122,32 @@ export default defineContentScript({
       app.handleKey(event);
     }
 
+    function handleOutsidePointer(event: MouseEvent) {
+      if (!app) return;
+      if (event.composedPath().includes(host)) return;
+
+      closePopup();
+    }
+
     function isPopupTextInputEvent(event: KeyboardEvent): boolean {
       return event.composedPath().some((target) => {
         return target instanceof HTMLInputElement && target.classList.contains('query-input');
       });
     }
 
+    function isPopupInputFocused(): boolean {
+      return shadow.activeElement instanceof HTMLInputElement && shadow.activeElement.classList.contains('query-input');
+    }
+
+    browser.runtime.onMessage.addListener((message) => {
+      if (message?.type !== 'OPEN_SELECTION_ASSIST') return;
+
+      openFromContextMenu();
+    });
+
     document.addEventListener('selectionchange', scheduleSelectionCheck);
+    window.addEventListener('mousedown', handleOutsidePointer, true);
     window.addEventListener('mouseup', scheduleSelectionCheck, true);
-    window.addEventListener('keyup', scheduleSelectionCheck, true);
     window.addEventListener('resize', updatePopupPosition);
     window.addEventListener('scroll', updatePopupPosition, true);
     window.addEventListener('keydown', handleKeyboard, true);

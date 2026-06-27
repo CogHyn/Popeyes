@@ -1,9 +1,18 @@
+import { MockSearchEngine } from '@/ai_engine/search/search.mock';
+import { MockSummaryEngine } from '@/ai_engine/summary/summary.mock';
+import { MockTranslateEngine } from '@/ai_engine/translate/translate.mock';
 import type { ActionId, StreamMessage, StreamRequest } from '@/types';
 
 const VIETNAMESE_RE = /[ăâđêôơưáàảãạấầẩẫậắằẳẵặéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵ]/i;
 const SUMMARY_LENGTH_THRESHOLD = 1000;
+const CONTEXT_MENU_ID = 'selection-assist-open';
+const translateEngine = new MockTranslateEngine();
+const summaryEngine = new MockSummaryEngine();
+const searchEngine = new MockSearchEngine();
 
 export default defineBackground(() => {
+  void ensureContextMenu();
+
   browser.runtime.onMessage.addListener((message) => {
     if (message?.type !== 'CLASSIFY_INTENT') return;
 
@@ -25,7 +34,30 @@ export default defineBackground(() => {
       void streamDraftResponse(port, request, () => cancelled);
     });
   });
+
+  browser.contextMenus.onClicked.addListener((info, tab) => {
+    if (info.menuItemId !== CONTEXT_MENU_ID || tab?.id === undefined) return;
+
+    void browser.tabs.sendMessage(tab.id, {
+      type: 'OPEN_SELECTION_ASSIST',
+    });
+  });
 });
+
+async function ensureContextMenu(): Promise<void> {
+  try {
+    await browser.contextMenus.update(CONTEXT_MENU_ID, {
+      title: 'Open AI Assistant',
+      contexts: ['selection'],
+    });
+  } catch {
+    await browser.contextMenus.create({
+      id: CONTEXT_MENU_ID,
+      title: 'Open AI Assistant',
+      contexts: ['selection'],
+    });
+  }
+}
 
 function classifyIntent(text: string): ActionId {
   if (VIETNAMESE_RE.test(text) || text.length >= SUMMARY_LENGTH_THRESHOLD) {
@@ -40,9 +72,9 @@ async function streamDraftResponse(
   request: StreamRequest,
   isCancelled: () => boolean,
 ): Promise<void> {
-  const response = buildDraftResponse(request);
-
   try {
+    const response = await buildMockResponse(request);
+
     for (const chunk of chunkText(response, 18)) {
       if (isCancelled()) return;
       postStreamMessage(port, { type: 'chunk', chunk });
@@ -62,27 +94,43 @@ async function streamDraftResponse(
   }
 }
 
-function buildDraftResponse(request: StreamRequest): string {
+async function buildMockResponse(request: StreamRequest): Promise<string> {
   const selectedText = request.selectedText.trim();
 
   if (request.mode === 'translate') {
-    return `Bản dịch nháp: ${selectedText}`;
+    const response = await translateEngine.translate({
+      text: selectedText,
+      targetLanguage: 'vi',
+    });
+
+    return response.translatedText;
   }
 
   if (request.mode === 'summary') {
-    return summarizeLocally(selectedText);
+    const response = await summaryEngine.summarize({
+      content: selectedText,
+    });
+
+    return response.summaryText;
   }
 
-  return `Câu hỏi: ${request.query ?? ''}\n\nDựa trên đoạn đã chọn, đây là câu trả lời nháp để kiểm tra UX popup. Bước tiếp theo sẽ nối Groq/Tavily để phản hồi có ngữ cảnh web thật.`;
-}
+  const query = request.query?.trim() || selectedText;
+  const response = await searchEngine.search({
+    query,
+  });
+  const resultLines = response.results.map((result, index) => {
+    return `${index + 1}. ${result.title}\n   ${result.link}`;
+  });
 
-function summarizeLocally(text: string): string {
-  const compact = text.replace(/\s+/g, ' ').trim();
-  if (compact.length <= 180) {
-    return `Tóm tắt: ${compact}`;
-  }
-
-  return `Tóm tắt: ${compact.slice(0, 180)}...`;
+  return [
+    `[Mock Search]`,
+    `Câu hỏi: ${query}`,
+    '',
+    'Câu trả lời nháp: dựa trên đoạn đã chọn và kết quả mock, đây là phản hồi dùng để test UI streaming/search mode trước khi nối Tavily thật.',
+    '',
+    'Nguồn mock:',
+    ...resultLines,
+  ].join('\n');
 }
 
 function chunkText(text: string, size: number): string[] {
