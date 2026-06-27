@@ -1,12 +1,24 @@
 # Search Feature
 
-## Overview
-The Search feature provides the ability to query information and retrieve relevant results, including titles and links to the source.
+Search Mode answers a user's popup query using the selected text, surrounding page context, and optional web results.
 
-## Data Structures
-- **SearchQuery**: Contains the search string `query`.
-- **SearchResult**: Represents a single search result containing a `title` and a `link`.
-- **SearchResponse**: Contains a list of `SearchResult`s.
+Current implementation is mock-only via `MockSearchEngine`. The contract is intentionally small so the UI can be tested before a real web-search/LLM adapter exists.
 
-## Interface
-- **ISearchEngine**: Exposes the `search` method which takes a `SearchQuery` and returns a Promise resolving to a `SearchResponse`.
+## Current Interface
+
+- `SearchQuery`: contains `query`.
+- `SearchResult`: contains `title` and `link`.
+- `SearchResponse`: contains `results`.
+- `ISearchEngine.search(query)`: returns a `Promise<SearchResponse>`.
+
+## Expansion Direction
+
+Search should grow in two modes:
+
+- `quick`: short, low-latency popup answer.
+- `deep`: multi-step research with planning, source reading, synthesis, citations, and uncertainty/gap reporting.
+
+Detailed spec:
+
+- `search_modules/SPEC.md`
+- `src/ai_engine/search/search.spec.md`

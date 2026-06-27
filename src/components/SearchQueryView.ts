@@ -22,10 +22,18 @@ export function SearchQueryView({ query, onQueryChange, onSubmit }: SearchQueryV
 
   input.addEventListener('input', () => onQueryChange(input.value));
   input.addEventListener('keydown', (event) => {
+    event.stopPropagation();
+
     if (event.key === 'Enter' && input.value.trim()) {
       event.preventDefault();
       onSubmit();
     }
+  });
+  input.addEventListener('keypress', (event) => {
+    event.stopPropagation();
+  });
+  input.addEventListener('keyup', (event) => {
+    event.stopPropagation();
   });
 
   shell.append(

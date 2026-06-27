@@ -1,6 +1,15 @@
 export type ActionId = 'translate' | 'summary';
 export type StreamMode = ActionId | 'search';
-export type PopupState = 'list' | 'streaming' | 'completed' | 'error';
+export type PopupState = 'list' | 'streaming' | 'completed' | 'error' | 'chat-streaming' | 'chat-completed';
+
+export type ChatRole = 'user' | 'assistant';
+export type ChatMessageStatus = 'streaming' | 'done' | 'error';
+
+export interface ChatMessage {
+  role: ChatRole;
+  content: string;
+  status?: ChatMessageStatus;
+}
 
 export interface Action {
   id: ActionId;
